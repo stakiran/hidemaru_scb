@@ -1,0 +1,2 @@
+# hidemaru_scb
+秀丸エディタでScrapbox風味の記法やリンクを実現する
