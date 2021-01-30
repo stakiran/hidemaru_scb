@@ -1,0 +1,22 @@
+#original_column = column;
+
+if(y == 0){
+	endmacro;
+}
+
+// 折り返し行も一行として扱いたいのでエディタ行を扱うgettext2を使う.
+$curline = gettext2(0, lineno, linelen2 ,lineno, 0);
+if(strlen($curline) == 0){
+	endmacro;
+}
+
+deleteline2;
+
+moveto 0, y-1;
+
+insertline;
+insert $curline;
+
+moveto2 #original_column, lineno;
+
+endmacro;

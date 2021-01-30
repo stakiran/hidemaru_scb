@@ -1,0 +1,180 @@
+// 動作
+// - 1: scbファイル以外は操作しない、そのままおわり
+// - 2: 選択状態だった場合はブラケティングしておわり
+// - 3: openbyshell で開ける場合は開いておわり
+// - 4: ブラケットを解釈して new or open
+
+if(filetype != ".scb"){
+	endmacro;
+}
+
+選択状態だったら選択位置をブラケティングして終わり:
+// 選択状態でも openbyshell が発動するのでこっちを先に判定する.
+if(selecting == 1){
+	if(seltopy != selendy){
+		endmacro;
+	}
+	#topx = seltopx;
+	#endx = selendx;
+	#originalx = x;
+	#cury = seltopy;
+	// 範囲選択中で insert すると上書きされるので, 範囲選択は解除する
+	escape;
+	moveto #topx, #cury;
+	insert "[";
+	moveto #endx + 1, #cury;
+	insert "]";
+	// ブラケティング後に続きを書く事が多いので, 常に右端に移動しちゃって良い.
+	// 囲み文字分(+2)を超えないと右端にいけないので +2 する
+	//moveto #originalx, #cury;
+	moveto #endx+2, #cury;
+	endmacro;
+}
+
+URLやファイルパスの場合はとりあえず開いてみる:
+openbyshell;
+if(result == true){
+	endmacro;
+}
+
+現在行取得:
+
+$curline = gettext(0, y, linelen ,y, 0);
+#wcslinelen = wcslen($curline);
+if(#wcslinelen == 0){
+	endmacro;
+}
+
+Unicode文字列換算での現在X位置取得:
+
+//#curx = x; //これだとUnicode文字列のカウントにならないので位置計算が軒並み狂う
+$string_between_x0_and_current = gettext(0, y, x ,y, 0);
+#curx = wcslen($string_between_x0_and_current);
+
+ブラケット位置の取得_←方向:
+
+#startpos = -1;
+#searchpos = #curx;
+while(#searchpos > 0){
+	#searchpos = #searchpos - 1;
+	$c = wcsmidstr($curline, #searchpos, 1);
+	if($c == "["){
+		#startpos = #searchpos + 1;
+		break;
+	}
+}
+if(#startpos == -1){
+	endmacro;
+}
+
+ブラケット位置の取得_→方向:
+
+#endpos = -1;
+#lineendpos = #wcslinelen;
+// ...xxx]
+//      ^
+//     ここの時に動かないのでずらす
+//#searchpos = #curx;
+#searchpos = #curx - 1;
+while(#searchpos < #lineendpos){
+	#searchpos = #searchpos + 1;
+	$c = wcsmidstr($curline, #searchpos, 1);
+	if($c == "]"){
+		#endpos = #searchpos;
+		break;
+	}
+}
+if(#endpos == -1){
+	endmacro;
+}
+
+ブラケット内の文字列を取得:
+
+#pickup_length = #endpos - #startpos;
+$pickuped_word = wcsmidstr($curline, #startpos, #pickup_length);
+
+新規orオープンするフルパスをつくる前のファイル名加工:
+
+$title = $pickuped_word;
+call is_not_page_link $title;
+if(##return){
+	endmacro;
+}
+
+$afterchar = "_";
+call replace_invalid_char_as_filename $title, $afterchar;
+$target_basename = $$return;
+
+新規orオープンするフルパスをつくる:
+
+$curdir = directory;
+$target_ext = ".scb";
+$target_filename = $target_basename + $target_ext;
+$target_fullpath = $curdir + "\\" + $target_filename;
+
+開く:
+
+$target_fullpath_quoted = "\"" + $target_fullpath + "\"";
+openfile $target_fullpath;
+endmacro;
+
+// ----------------------------
+// sub-routines
+// ----------------------------
+
+// リンク記法でないものを弾く
+// - [- 打ち消し線]
+// - [* 太字]
+// - [https://…… title]
+// - [title https://……]
+is_not_page_link:
+$$title = $$1;
+$$head = wcsmidstr($$title, 0, 1);
+if($$head == "-"){
+	return true;
+}
+if($$head == "*"){
+	return true;
+}
+##idx = wcsstrstr($$title, "http://");
+if(##idx != -1){
+	return true;
+}
+##idx = wcsstrstr($$title, "https://");
+if(##idx != -1){
+	return true;
+}
+return false;
+
+// [実装アイデア]
+// - 秀丸エディタには replace 関数がない
+// - 今開いているウィンドウに対してなら replace できる
+// - 見えないウィンドウを出すこともできる
+// (1) というわけで「見えないウィンドウに文字列貼り付けてreplaceする」で実現する.
+//
+// (2) 性能のため、replace したいパターン n 個はすべてステルスファイル内で行う.
+// 参考: http://officetanaka.net/other/hidemaru/10.htm
+replace_invalid_char_as_filename:
+$$target = $$1;
+$$after = $$2;
+##caller_hwnd = hidemaruhandle(0);
+openfile "/h";
+##stealth_window_hwnd = hidemaruhandle(0);
+insert $$target;
+replaceallfast "\\", $$after;
+replaceallfast "/", $$after;
+replaceallfast ":", $$after;
+replaceallfast "*", $$after;
+replaceallfast "?", $$after;
+replaceallfast "\"", $$after;
+replaceallfast ">", $$after;
+replaceallfast "<", $$after;
+replaceallfast "|", $$after;
+// スペースはファイル名として無効な文字ではないが
+// ファイル名に含まれると鬱陶しいので殺す
+replaceallfast " ", $$after;
+selectall;
+$$replaced_string = gettext(seltopx, seltopy, selendx, selendy);
+setactivehidemaru ##caller_hwnd;
+closehidemaruforced ##stealth_window_hwnd;
+return $$replaced_string;
