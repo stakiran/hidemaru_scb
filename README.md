@@ -1,6 +1,11 @@
 # hidemaru_scb
 秀丸エディタでScrapbox風味の記法やリンクを実現する
 
+![image](https://user-images.githubusercontent.com/23325839/106346071-bea72000-62f7-11eb-97bd-472eb61ea312.png)
+
+## ダウンロード
+- [Releaseページ](https://github.com/stakiran/hidemaru_scb/releases) よりダウンロードできます
+
 ## 要件
 - 秀丸エディタ V8.00 以上
 
