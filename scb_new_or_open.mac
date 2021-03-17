@@ -161,6 +161,7 @@ $$after = $$2;
 openfile "/h";
 ##stealth_window_hwnd = hidemaruhandle(0);
 insert $$target;
+call save_searchsettings;
 replaceallfast "\\", $$after;
 replaceallfast "/", $$after;
 replaceallfast ":", $$after;
@@ -173,8 +174,25 @@ replaceallfast "|", $$after;
 // スペースはファイル名として無効な文字ではないが
 // ファイル名に含まれると鬱陶しいので殺す
 replaceallfast " ", $$after;
+call restore_searchsettings;
 selectall;
 $$replaced_string = gettext(seltopx, seltopy, selendx, selendy);
 setactivehidemaru ##caller_hwnd;
 closehidemaruforced ##stealth_window_hwnd;
 return $$replaced_string;
+
+// 検索設定が上書きされるのを防ぐため, 
+// 現在の設定を保持してから検索を行い, 終わった後で復旧するようにする.
+//
+// [使い方]
+// save → 検索設定上書きされる系操作一通り → restore
+save_searchsettings:
+#oldsettings = searchoption;
+$oldgrepee   = grepfilebuffer;
+$oldquery = ""; // 元々検索語は保持されてないのでテキトーに空文字で.
+return;
+
+restore_searchsettings:
+setsearch $oldquery, #oldsettings;
+setgrepfile $oldgrepee;
+return;
