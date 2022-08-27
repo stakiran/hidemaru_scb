@@ -11,23 +11,23 @@ if(filetype != ".scb"){
 選択状態だったら選択位置をブラケティングして終わり:
 // 選択状態でも openbyshell が発動するのでこっちを先に判定する.
 if(selecting == 1){
-	if(seltopy != selendy){
+	if(seltoplineno != selendlineno){
 		endmacro;
 	}
-	#topx = seltopx;
-	#endx = selendx;
-	#originalx = x;
-	#cury = seltopy;
+	#topx = seltopcolumn;
+	#endx = selendcolumn;
+	#originalx = column;
+	#cury = seltoplineno;
 	// 範囲選択中で insert すると上書きされるので, 範囲選択は解除する
 	escape;
-	moveto #topx, #cury;
+	moveto2 #topx, #cury;
 	insert "[";
-	moveto #endx + 1, #cury;
+	moveto2 #endx + 1, #cury;
 	insert "]";
 	// ブラケティング後に続きを書く事が多いので, 常に右端に移動しちゃって良い.
 	// 囲み文字分(+2)を超えないと右端にいけないので +2 する
-	//moveto #originalx, #cury;
-	moveto #endx+2, #cury;
+	//moveto2 #originalx, #cury;
+	moveto2 #endx+2, #cury;
 	endmacro;
 }
 
@@ -39,17 +39,90 @@ if(result == true){
 
 現在行取得:
 
-$curline = gettext(0, y, linelen ,y, 0);
+// x,y など座標だと折り返しに対応できないので、column,lineno のエディタ的位置を使う
+$curline = gettext2(0, lineno, linelen2, lineno, 0);
 #wcslinelen = wcslen($curline);
 if(#wcslinelen == 0){
 	endmacro;
 }
+#lineendpos = #wcslinelen;
 
-Unicode文字列換算での現在X位置取得:
+現在X位置取得:
 
-//#curx = x; //これだとUnicode文字列のカウントにならないので位置計算が軒並み狂う
-$string_between_x0_and_current = gettext(0, y, x ,y, 0);
-#curx = wcslen($string_between_x0_and_current);
+call get_curx;
+#curx = ##return;
+
+スマートリンク:
+
+// リンクしか書いてない行の場合、内部にいなくても開きたい。
+// 判定して、いけそうなら内部にいたことにしてしまう。
+//
+// 判定とは
+//   case1: 行頭にいる
+//        I   [xxxx]
+//   case2: 行末にいる
+//            [xxxx]I
+//
+// 内部にいたことにする、とは
+//   カーソルをブラケットの内部にまで移動させてしまう
+//
+// 行頭や行末ではなく「間が空白だけなら問題ない」とはしてしまわないのか？
+//   しない
+//   理由は、判定処理が難しくなるから
+//   たとえば以下のケースを判定するのは難しい
+//        I   [xxxx]          これは移動したい
+//         [xxx] I  [xxxx]    これは移動したくない
+//   後者を判定するためには前後を調べないといけない……など処理が煩雑になる
+
+if(#curx == 0){
+	// case1
+
+	#movecount = -1;
+	#searchpos = #curx;
+	while(#searchpos < #lineendpos){
+		$c = wcsmidstr($curline, #searchpos, 1);
+		#searchpos = #searchpos + 1;
+		if($c == " "){
+			continue;
+		}
+		if($c == "["){
+			#movecount = #searchpos;
+			break;
+		}
+		break;
+	}
+	if(#movecount != -1){
+		right #movecount;
+		call get_curx;
+		#curx = ##return;
+	}
+
+}else if(#curx == #lineendpos){
+	// case2
+
+	#movecount = 0;
+	#searchpos = #curx;
+	// リンクは [x] で最低3文字なので3文字目まで調べれば十分
+	while(#searchpos > 2){
+		#searchpos = #searchpos - 1;
+		$c = wcsmidstr($curline, #searchpos, 1);
+		if($c == " "){
+			#movecount = #movecount + 1;
+			continue
+		}
+		if($c == "]"){
+			#movecount = #movecount + 1;
+			break;
+		}
+		break;
+	}
+	if(#movecount > 0){
+		left #movecount;
+		call get_curx;
+		#curx = ##return;
+	}
+}
+
 
 ブラケット位置の取得_←方向:
 
@@ -58,6 +131,12 @@ $string_between_x0_and_current = gettext(0, y, x ,y, 0);
 while(#searchpos > 0){
 	#searchpos = #searchpos - 1;
 	$c = wcsmidstr($curline, #searchpos, 1);
+	if($c == "]"){
+		// [xxxx]   I    [xxxx]
+		// このようなケースが考えられるが、無効にする
+		// これ無効にしないと "xxxx]   I    [xxxx" これが検出されてしまう
+		break;
+	}
 	if($c == "["){
 		#startpos = #searchpos + 1;
 		break;
@@ -70,7 +149,6 @@ if(#startpos == -1){
 ブラケット位置の取得_→方向:
 
 #endpos = -1;
-#lineendpos = #wcslinelen;
 // ...xxx]
 //      ^
 //     ここの時に動かないのでずらす
@@ -121,6 +199,14 @@ endmacro;
 // ----------------------------
 // sub-routines
 // ----------------------------
+
+
+get_curx:
+// Unicode文字列換算で現在X位置取得する。
+//##curx = x; //これだとUnicode文字列のカウントにならないので位置計算が軒並み狂う。
+$$string_between_x0_and_current = gettext2(0, lineno, column, lineno, 0);
+##curx = wcslen($$string_between_x0_and_current);
+return ##curx;
 
 // リンク記法でないものを弾く
 // - [- 打ち消し線]
@@ -176,7 +262,7 @@ replaceallfast "|", $$after;
 replaceallfast " ", $$after;
 call restore_searchsettings;
 selectall;
-$$replaced_string = gettext(seltopx, seltopy, selendx, selendy);
+$$replaced_string = gettext2(seltopcolumn, seltoplineno, selendcolumn, selendlineno);
 setactivehidemaru ##caller_hwnd;
 closehidemaruforced ##stealth_window_hwnd;
 return $$replaced_string;
