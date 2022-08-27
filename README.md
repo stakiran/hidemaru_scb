@@ -21,6 +21,8 @@
 
 ※インデントのカラーが少ない版（青系2色のみ）もあります → scb_mincolor.hilight
 
+![image](https://user-images.githubusercontent.com/23325839/187015955-1da1a218-e936-4bc1-a0af-ad48112b268b.png)
+
 ### マクロの設定
 - 以下のマクロを新規登録し、適当なショートカットキーを設定してください
     - scb_new_or_open.mac
