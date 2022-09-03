@@ -59,45 +59,22 @@ call get_curx;
 //
 // 判定とは
 //   case1: 行頭にいる
-//        I   [xxxx]
+//        `I   [xxxx]`
 //   case2: 行末にいる
-//            [xxxx]I
+//        `    [xxxx]I`
+//   case3: 行頭でも行末でもない位置にいる
+//        ` I [xxxx]   `
+//        `   [xIxxx]   `
+//        `   [xxxx] I `
 //
 // 内部にいたことにする、とは
 //   カーソルをブラケットの内部にまで移動させてしまう
 //
-// 行頭や行末ではなく「間が空白だけなら問題ない」とはしてしまわないのか？
-//   しない
-//   理由は、判定処理が難しくなるから
-//   たとえば以下のケースを判定するのは難しい
-//        I   [xxxx]          これは移動したい
-//         [xxx] I  [xxxx]    これは移動したくない
-//   後者を判定するためには前後を調べないといけない……など処理が煩雑になる
+// 判定アルゴリズム
+//   行末の場合は、←方向を探していって ] があればそれで確定
+//   それ以外の場合は、→方向を探していって [ があればそれで確定
 
-if(#curx == 0){
-	// case1
-
-	#movecount = -1;
-	#searchpos = #curx;
-	while(#searchpos < #lineendpos){
-		$c = wcsmidstr($curline, #searchpos, 1);
-		#searchpos = #searchpos + 1;
-		if($c == " "){
-			continue;
-		}
-		if($c == "["){
-			#movecount = #searchpos;
-			break;
-		}
-		break;
-	}
-	if(#movecount != -1){
-		right #movecount;
-		call get_curx;
-		#curx = ##return;
-	}
-
-}else if(#curx == #lineendpos){
+if(#curx == #lineendpos){
 	// case2
 
 	#movecount = 0;
@@ -121,8 +98,33 @@ if(#curx == 0){
 		call get_curx;
 		#curx = ##return;
 	}
-}
+}else{
+	// case1 and case3
 
+	#movecount = -1;
+	#searchpos = #curx;
+	while(#searchpos < #lineendpos){
+		$c = wcsmidstr($curline, #searchpos, 1);
+		#searchpos = #searchpos + 1;
+		if($c == " "){
+			#movecount = #movecount + 1;
+			continue;
+		}
+		if($c == "["){
+			#movecount = #movecount + 1;
+			break;
+		}
+		break;
+	}
+	if(#movecount != -1){
+		//   [xx]
+		//   ^
+		// movecountはここまでなので +1 しないと内部にならない
+		right #movecount + 1;
+		call get_curx;
+		#curx = ##return;
+	}
+}
 
 ブラケット位置の取得_←方向:
 
